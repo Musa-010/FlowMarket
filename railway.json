@@ -5,7 +5,7 @@
   "service": {
     "name": "backend",
     "buildCommand": "npm ci && npm run build",
-    "startCommand": "npm run start:prod"
+    "startCommand": "node --max-old-space-size=512 dist/main.js"
   },
   "env": [
     "DATABASE_URL",
