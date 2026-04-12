@@ -1,0 +1,45 @@
+{
+  "project": {
+    "name": "flowmarket-backend"
+  },
+  "service": {
+    "name": "backend",
+    "buildCommand": "npm ci && npm run build",
+    "startCommand": "npm run start:prod"
+  },
+  "env": [
+    "DATABASE_URL",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_STORAGE_BUCKET",
+    "APP_URL",
+    "AWS_REGION",
+    "AWS_SES_FROM_EMAIL",
+    "AWS_SES_ACCESS_KEY_ID",
+    "AWS_SES_SECRET_ACCESS_KEY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_CHECKOUT_SUCCESS_URL",
+    "STRIPE_CHECKOUT_CANCEL_URL",
+    "STRIPE_PORTAL_RETURN_URL",
+    "STRIPE_PRICE_STARTER",
+    "STRIPE_PRICE_PRO",
+    "STRIPE_PRICE_AGENCY",
+    "STRIPE_PRICE_STARTER_MONTHLY",
+    "STRIPE_PRICE_PRO_MONTHLY",
+    "STRIPE_PRICE_AGENCY_MONTHLY",
+    "STRIPE_PRICE_STARTER_YEARLY",
+    "STRIPE_PRICE_PRO_YEARLY",
+    "STRIPE_PRICE_AGENCY_YEARLY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL",
+    "ENCRYPTION_KEY",
+    "REDIS_URL",
+    "N8N_BASE_URL",
+    "N8N_API_KEY",
+    "FIREBASE_SERVICE_ACCOUNT_JSON",
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_CLIENT_EMAIL",
+    "FIREBASE_PRIVATE_KEY"
+  ]
+}

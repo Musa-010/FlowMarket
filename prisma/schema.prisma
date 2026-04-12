@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum WorkflowPlatform {
+  N8N
+  MAKE
+  BOTH
+}
+
+enum WorkflowCategory {
+  EMAIL
+  LEAD_GEN
+  CRM
+  SOCIAL
+  INVOICE
+  ECOM
+  REPORT
+  NOTIF
+  CUSTOM
+}
+
+enum WorkflowDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum WorkflowStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PlanTier {
+  STARTER
+  PRO
+  AGENCY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+}
+
+enum DeploymentStatus {
+  CONFIGURING
+  ACTIVE
+  PAUSED
+  FAILED
+  STOPPED
+}
+
+enum NotificationType {
+  PURCHASE
+  DEPLOYMENT
+  REVIEW
+  SYSTEM
+}
+
+model User {
+  id               String         @id @default(cuid())
+  email            String         @unique
+  name             String
+  role             UserRole       @default(BUYER)
+  stripeCustomerId String?        @unique
+  workflows        Workflow[]     @relation("SellerWorkflows")
+  purchases        Purchase[]
+  subscriptions    Subscription[]
+  deployments      Deployment[]
+  reviews          Review[]
+  notifications    Notification[]
+  deviceTokens     DeviceToken[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Workflow {
+  id                   String             @id @default(cuid())
+  title                String
+  slug                 String             @unique
+  shortDescription     String
+  fullDescription      String?
+  platform             WorkflowPlatform
+  category             WorkflowCategory
+  difficulty           WorkflowDifficulty @default(BEGINNER)
+  oneTimePrice         Float?
+  monthlyPrice         Float?
+  previewImages        Json               @default("[]")
+  requiredIntegrations Json               @default("[]")
+  tags                 Json               @default("[]")
+  steps                Json               @default("[]")
+  demoVideoUrl         String?
+  workflowFileUrl      String?
+  avgRating            Float              @default(0)
+  reviewCount          Int                @default(0)
+  purchaseCount        Int                @default(0)
+  setupTime            String?
+  status               WorkflowStatus     @default(APPROVED)
+  rejectionReason      String?
+  sellerId             String?
+  seller               User?              @relation("SellerWorkflows", fields: [sellerId], references: [id], onDelete: SetNull)
+  isFeatured           Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  purchases            Purchase[]
+  deployments          Deployment[]
+  reviews              Review[]
+
+  @@index([status])
+  @@index([category])
+  @@index([platform])
+  @@index([isFeatured])
+  @@index([createdAt])
+}
+
+model Purchase {
+  id                     String   @id @default(cuid())
+  userId                 String
+  workflowId             String
+  pricePaid              Float
+  stripePaymentId        String?
+  stripeCheckoutSessionId String? @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow               Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  createdAt              DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([workflowId])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  plan                 PlanTier
+  status               SubscriptionStatus
+  stripeSubscriptionId String             @unique
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId, status])
+}
+
+model StripeWebhookEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  eventType   String
+  payload     Json
+  processedAt DateTime @default(now())
+}
+
+model Deployment {
+  id            String           @id @default(cuid())
+  userId        String
+  workflowId    String
+  status        DeploymentStatus @default(CONFIGURING)
+  n8nWorkflowId String?
+  configEncrypted String?
+  configIv      String?
+  configAuthTag String?
+  totalExecutions Int            @default(0)
+  lastRunAt     DateTime?
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow      Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  logs          ExecutionLog[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([workflowId])
+  @@index([status])
+}
+
+model ExecutionLog {
+  id           String     @id @default(cuid())
+  deploymentId String
+  success      Boolean
+  durationMs   Int
+  errorMessage String?
+  payload      Json?
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  executedAt   DateTime   @default(now())
+
+  @@index([deploymentId, executedAt])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  workflowId String
+  rating     Int
+  comment    String?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, workflowId])
+  @@index([workflowId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  type      NotificationType @default(SYSTEM)
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId, isRead, createdAt])
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Added for Agencies and Payouts
+model Agency {
+  id           String   @id @default(cuid())
+  name         String
+  domain       String?
+  ownerId      String
+  brandLogoUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Payout {
+  id        String   @id @default(cuid())
+  sellerId  String
+  amount    Float
+  reference String?
+  createdAt DateTime @default(now())
+  status    String   @default("PENDING")
+}

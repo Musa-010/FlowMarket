@@ -1,0 +1,68 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Post,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import {
+  assertRole,
+  getRequestContext,
+} from '../../common/request/request-context';
+import { CreateCustomerPortalDto } from '../dto/create-customer-portal.dto';
+import { CreateOneTimeCheckoutDto } from '../dto/create-one-time-checkout.dto';
+import { CreateSubscriptionCheckoutDto } from '../dto/create-subscription-checkout.dto';
+import { PaymentsService } from '../payments.service';
+
+@Controller('checkout')
+export class CheckoutController {
+  constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Post('one-time')
+  createOneTimeCheckout(
+    @Req() req: Request,
+    @Body() dto: CreateOneTimeCheckoutDto,
+  ) {
+    const context = getRequestContext(req);
+    assertRole(context, ['BUYER', 'SELLER', 'ADMIN']);
+    return this.paymentsService.createOneTimeCheckout(context.userId, dto);
+  }
+
+  @Post('subscription')
+  createSubscriptionCheckout(
+    @Req() req: Request,
+    @Body() dto: CreateSubscriptionCheckoutDto,
+  ) {
+    const context = getRequestContext(req);
+    assertRole(context, ['BUYER', 'SELLER', 'ADMIN']);
+    return this.paymentsService.createSubscriptionCheckout(context.userId, dto);
+  }
+
+  @Post('portal')
+  createCustomerPortal(
+    @Req() req: Request,
+    @Body() dto: CreateCustomerPortalDto,
+  ) {
+    const context = getRequestContext(req);
+    assertRole(context, ['BUYER', 'SELLER', 'ADMIN']);
+    return this.paymentsService.createCustomerPortal(context.userId, dto);
+  }
+
+  @Post('webhook')
+  handleStripeWebhook(
+    @Req() req: Request,
+    @Headers('stripe-signature') signature?: string,
+  ) {
+    if (!signature) {
+      throw new BadRequestException('Missing stripe-signature header');
+    }
+
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(JSON.stringify(req.body ?? {}));
+
+    return this.paymentsService.handleStripeWebhook(signature, rawBody);
+  }
+}
