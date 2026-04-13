@@ -20,6 +20,7 @@ RUN npm ci --omit=dev
 
 # Copy built files
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
 CMD ["node","--max-old-space-size=512","dist/main.js"]
