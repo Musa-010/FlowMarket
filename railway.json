@@ -5,7 +5,7 @@
   "service": {
     "name": "backend",
     "buildCommand": "npm ci && npx prisma generate && npm run build",
-    "startCommand": "node --max-old-space-size=512 dist/src/main.js"
+    "startCommand": "node --max-old-space-size=256 dist/src/main.js"
   },
   "env": [
     "DATABASE_URL",

@@ -29,4 +29,4 @@ RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
-CMD ["node","--max-old-space-size=512","dist/src/main.js"]
+CMD ["node","--max-old-space-size=256","dist/src/main.js"]
