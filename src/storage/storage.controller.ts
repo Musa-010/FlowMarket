@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   assertRole,
@@ -6,8 +6,10 @@ import {
 } from '../common/request/request-context';
 import { CreateUploadUrlDto } from './dto/create-upload-url.dto';
 import { StorageService } from './storage.service';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 
 @Controller('storage')
+@UseGuards(JwtAuthGuard)
 export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 

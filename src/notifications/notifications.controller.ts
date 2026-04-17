@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   assertRole,
@@ -8,8 +8,10 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { RegisterDeviceTokenDto } from './dto/register-device-token.dto';
 import { NotificationsService } from './notifications.service';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 
 @Controller('notifications')
+@UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

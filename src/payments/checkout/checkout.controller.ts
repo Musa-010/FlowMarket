@@ -5,12 +5,14 @@ import {
   Headers,
   Post,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   assertRole,
   getRequestContext,
 } from '../../common/request/request-context';
+import { JwtAuthGuard } from '../../auth/guards/jwt.guard';
 import { CreateCustomerPortalDto } from '../dto/create-customer-portal.dto';
 import { CreateOneTimeCheckoutDto } from '../dto/create-one-time-checkout.dto';
 import { CreateSubscriptionCheckoutDto } from '../dto/create-subscription-checkout.dto';
@@ -21,6 +23,7 @@ export class CheckoutController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('one-time')
+  @UseGuards(JwtAuthGuard)
   createOneTimeCheckout(
     @Req() req: Request,
     @Body() dto: CreateOneTimeCheckoutDto,
@@ -31,6 +34,7 @@ export class CheckoutController {
   }
 
   @Post('subscription')
+  @UseGuards(JwtAuthGuard)
   createSubscriptionCheckout(
     @Req() req: Request,
     @Body() dto: CreateSubscriptionCheckoutDto,
@@ -41,6 +45,7 @@ export class CheckoutController {
   }
 
   @Post('portal')
+  @UseGuards(JwtAuthGuard)
   createCustomerPortal(
     @Req() req: Request,
     @Body() dto: CreateCustomerPortalDto,

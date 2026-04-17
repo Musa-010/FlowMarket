@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import {
   assertRole,
@@ -7,8 +16,10 @@ import {
 import { CreateWorkflowDto } from '../dto/create-workflow.dto';
 import { UpdateWorkflowDto } from '../dto/update-workflow.dto';
 import { WorkflowsService } from '../workflows.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt.guard';
 
 @Controller('seller/workflows')
+@UseGuards(JwtAuthGuard)
 export class SellerWorkflowsController {
   constructor(private readonly workflowsService: WorkflowsService) {}
 

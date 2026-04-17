@@ -6,6 +6,7 @@ import {
   Patch,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import {
@@ -16,8 +17,10 @@ import { AdminQueryWorkflowsDto } from '../dto/admin-query-workflows.dto';
 import { FeatureWorkflowDto } from '../dto/feature-workflow.dto';
 import { ModerateWorkflowDto } from '../dto/moderate-workflow.dto';
 import { WorkflowsService } from '../workflows.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt.guard';
 
 @Controller('admin/workflows')
+@UseGuards(JwtAuthGuard)
 export class AdminWorkflowsController {
   constructor(private readonly workflowsService: WorkflowsService) {}
 
