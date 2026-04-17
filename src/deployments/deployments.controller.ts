@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   assertRole,
@@ -7,9 +7,11 @@ import {
 import { ConfigureDeploymentDto } from './dto/configure-deployment.dto';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { QueryDeploymentLogsDto } from './dto/query-deployment-logs.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { DeploymentsService } from './deployments.service';
 
 @Controller('deployments')
+@UseGuards(JwtAuthGuard)
 export class DeploymentsController {
   constructor(private readonly deploymentsService: DeploymentsService) {}
 

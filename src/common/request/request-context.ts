@@ -22,10 +22,19 @@ function readHeader(req: Request, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-export function getRequestContext(req: Request): RequestContext {
+export function getRequestContext(req: Request & { user?: any }): RequestContext {
+  // First try to get from Passport injected user (JwtAuthGuard)
+  if (req.user && req.user.sub) {
+    return {
+      userId: req.user.sub,
+      role: (req.user.role?.toUpperCase() || 'BUYER') as RequestRole,
+    };
+  }
+
+  // Fallback to headers (for api gateways/local test)
   const userId = readHeader(req, 'x-user-id');
   if (!userId) {
-    throw new UnauthorizedException('x-user-id header is required');
+    throw new UnauthorizedException('Authorization required: Missing x-user-id header or valid JWT token');
   }
 
   const roleHeader = readHeader(req, 'x-user-role')?.toUpperCase() ?? 'BUYER';

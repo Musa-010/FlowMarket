@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   assertRole,
@@ -6,9 +6,11 @@ import {
 } from '../common/request/request-context';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { QueryPurchasesDto } from './dto/query-purchases.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { PurchasesService } from './purchases.service';
 
 @Controller('purchases')
+@UseGuards(JwtAuthGuard)
 export class PurchasesController {
   constructor(private readonly purchasesService: PurchasesService) {}
 

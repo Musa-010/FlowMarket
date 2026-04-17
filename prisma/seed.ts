@@ -302,7 +302,7 @@ async function main() {
         avgRating: 4.2,
         reviewCount: 12,
         purchaseCount: 0,
-        previewImages: [],
+        previewImages: [`https://picsum.photos/seed/${workflow.slug}/800/600`],
       },
     });
   }
