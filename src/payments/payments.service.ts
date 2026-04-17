@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ import { CreateSubscriptionCheckoutDto } from './dto/create-subscription-checkou
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
   private stripeClient: any = null;
 
   constructor(
@@ -36,68 +38,83 @@ export class PaymentsService {
     userId: string,
     dto: CreateOneTimeCheckoutDto,
   ): Promise<{ sessionId: string; checkoutUrl: string }> {
-    const stripe = this.getStripeClient();
-    const user = await this.ensureUser(userId);
-    const workflow = await this.prisma.workflow.findFirst({
-      where: {
-        id: dto.workflowId,
-        status: WorkflowStatus.APPROVED,
-      },
-    });
+    try {
+      this.logger.log(`Creating one-time checkout for user ${userId}, workflow ${dto.workflowId}`);
+      const stripe = this.getStripeClient();
+      const user = await this.ensureUser(userId);
+      const workflow = await this.prisma.workflow.findFirst({
+        where: {
+          id: dto.workflowId,
+          status: WorkflowStatus.APPROVED,
+        },
+      });
 
-    if (!workflow) {
-      throw new NotFoundException('Approved workflow not found');
-    }
-    if (!workflow.oneTimePrice || workflow.oneTimePrice <= 0) {
-      throw new BadRequestException(
-        'This workflow does not have a one-time purchase price',
-      );
-    }
+      if (!workflow) {
+        this.logger.warn(`Approved workflow not found: ${dto.workflowId}`);
+        throw new NotFoundException('Approved workflow not found');
+      }
+      if (!workflow.oneTimePrice || workflow.oneTimePrice <= 0) {
+        throw new BadRequestException(
+          'This workflow does not have a one-time purchase price',
+        );
+      }
 
-    const customerId = await this.ensureStripeCustomer(user);
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer: customerId,
-      client_reference_id: user.id,
-      success_url: this.getSuccessUrl(),
-      cancel_url: this.getCancelUrl(),
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: Math.round(workflow.oneTimePrice * 100),
-            product_data: {
-              name: workflow.title,
-              description: workflow.shortDescription,
+      const customerId = await this.ensureStripeCustomer(user);
+      this.logger.debug(`Stripe Customer ID resolved: ${customerId}`);
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        customer: customerId,
+        client_reference_id: user.id,
+        success_url: this.getSuccessUrl(),
+        cancel_url: this.getCancelUrl(),
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: Math.round(workflow.oneTimePrice * 100),
+              product_data: {
+                name: workflow.title,
+                description: workflow.shortDescription,
+              },
             },
           },
-        },
-      ],
-      metadata: {
-        type: 'ONE_TIME_WORKFLOW',
-        userId: user.id,
-        workflowId: workflow.id,
-      },
-      payment_intent_data: {
+        ],
         metadata: {
           type: 'ONE_TIME_WORKFLOW',
           userId: user.id,
           workflowId: workflow.id,
         },
-      },
-    });
+        payment_intent_data: {
+          metadata: {
+            type: 'ONE_TIME_WORKFLOW',
+            userId: user.id,
+            workflowId: workflow.id,
+          },
+        },
+      });
 
-    if (!session.url) {
-      throw new InternalServerErrorException(
-        'Stripe did not return a checkout URL',
-      );
+      if (!session.url) {
+        throw new InternalServerErrorException(
+          'Stripe did not return a checkout URL',
+        );
+      }
+
+      return {
+        sessionId: session.id,
+        checkoutUrl: session.url,
+      };
+    } catch (error) {
+      this.logger.error(`Checkout Session Creation Failed: ${error.message}`, error.stack);
+      if (error instanceof Stripe.errors.StripeError) {
+        this.logger.error(`Stripe specific error: ${error.type} - ${error.code}`);
+      }
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Checkout failed: ${error.message}`);
     }
-
-    return {
-      sessionId: session.id,
-      checkoutUrl: session.url,
-    };
   }
 
   async createSubscriptionCheckout(
@@ -707,18 +724,23 @@ export class PaymentsService {
       return user.stripeCustomerId;
     }
 
-    const stripe = this.getStripeClient();
-    const customer = await stripe.customers.create({
-      email: user.email,
-      name: user.name,
-      metadata: { userId: user.id },
-    });
+    try {
+      const stripe = this.getStripeClient();
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: user.name,
+        metadata: { userId: user.id },
+      });
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { stripeCustomerId: customer.id },
-    });
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { stripeCustomerId: customer.id },
+      });
 
-    return customer.id;
+      return customer.id;
+    } catch (error) {
+      this.logger.error(`Failed to ensure Stripe customer for user ${user.id}: ${error.message}`);
+      throw error;
+    }
   }
 }
