@@ -7,12 +7,20 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { WorkflowStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { mapWorkflow } from '../workflows/workflow.mapper';
+import { mapWorkflow, WorkflowResponse } from '../workflows/workflow.mapper';
 import { RecommendWorkflowDto } from './dto/recommend-workflow.dto';
 
 interface RecommendationResponse {
   message: string;
   recommendedWorkflowIds: string[];
+}
+
+interface OpenRouterResponse {
+  choices?: {
+    message?: {
+      content?: string;
+    };
+  }[];
 }
 
 @Injectable()
@@ -51,7 +59,7 @@ export class AiService {
     );
     const recommendations = aiResponse.recommendedWorkflowIds
       .map((id) => workflowsById.get(id))
-      .filter((workflow) => workflow !== undefined);
+      .filter((workflow): workflow is WorkflowResponse => workflow !== undefined);
 
     return {
       message: aiResponse.message,
@@ -61,7 +69,7 @@ export class AiService {
 
   private async queryOpenRouter(
     dto: RecommendWorkflowDto,
-    workflows: ReturnType<typeof mapWorkflow>[],
+    workflows: WorkflowResponse[],
   ): Promise<RecommendationResponse> {
     const apiKey = this.configService.get<string>('OPENROUTER_API_KEY');
     if (!apiKey) {
@@ -109,12 +117,13 @@ export class AiService {
     ].join('\n');
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      // Use global.fetch or cast to any to avoid "fetch not found" TS errors if lib is missing
+      const response = await (global as any).fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://flowmarket.io', // Optional, for OpenRouter rankings
-          'X-Title': 'FlowMarket', // Optional
+          'HTTP-Referer': 'https://flowmarket.io',
+          'X-Title': 'FlowMarket',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -133,14 +142,14 @@ export class AiService {
         throw new BadGatewayException(`OpenRouter API returned ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as OpenRouterResponse;
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
         throw new BadGatewayException('OpenRouter returned an empty response');
       }
 
-      const parsed = this.parseJson(content);
+      const parsed: any = this.parseJson(content);
 
       if (
         typeof parsed.message !== 'string' ||
@@ -155,15 +164,17 @@ export class AiService {
       return {
         message: parsed.message,
         recommendedWorkflowIds: Array.from(
-          new Set(parsed.recommendedWorkflowIds.map((id: string) => id.trim())),
+          new Set((parsed.recommendedWorkflowIds as string[]).map((id) => id.trim())),
         ).slice(0, 3),
       };
-    } catch (error) {
-      this.logger.error(`AI recommendation failed: ${error.message}`, error.stack);
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`AI recommendation failed: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
+      
       if (error instanceof ServiceUnavailableException || error instanceof BadGatewayException) {
         throw error;
       }
-      throw new BadGatewayException(`AI Assistant unavailable: ${error.message}`);
+      throw new BadGatewayException(`AI Assistant unavailable: ${errorMessage}`);
     }
   }
 
