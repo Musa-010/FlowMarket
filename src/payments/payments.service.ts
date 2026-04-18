@@ -34,6 +34,71 @@ export class PaymentsService {
     private readonly emailService: EmailService,
   ) {}
 
+  async createPaymentIntent(
+    userId: string,
+    dto: { workflowId: string },
+  ): Promise<{ clientSecret: string; ephemeralKey: string; customerId: string }> {
+    const stripe = this.getStripeClient();
+    const user = await this.ensureUser(userId);
+    const workflow = await this.prisma.workflow.findFirst({
+      where: { id: dto.workflowId, status: WorkflowStatus.APPROVED },
+    });
+
+    if (!workflow) throw new NotFoundException('Approved workflow not found');
+    if (!workflow.oneTimePrice || workflow.oneTimePrice <= 0) {
+      throw new BadRequestException('This workflow does not have a one-time purchase price');
+    }
+
+    const customerId = await this.ensureStripeCustomer(user);
+
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2023-10-16' },
+    );
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(workflow.oneTimePrice * 100),
+      currency: 'usd',
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        type: 'ONE_TIME_WORKFLOW',
+        userId: user.id,
+        workflowId: workflow.id,
+      },
+    });
+
+    return {
+      clientSecret: paymentIntent.client_secret!,
+      ephemeralKey: ephemeralKey.secret!,
+      customerId,
+    };
+  }
+
+  async createSetupIntent(
+    userId: string,
+  ): Promise<{ setupIntentClientSecret: string; ephemeralKey: string; customerId: string }> {
+    const stripe = this.getStripeClient();
+    const user = await this.ensureUser(userId);
+    const customerId = await this.ensureStripeCustomer(user);
+
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2023-10-16' },
+    );
+
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
+    });
+
+    return {
+      setupIntentClientSecret: setupIntent.client_secret!,
+      ephemeralKey: ephemeralKey.secret!,
+      customerId,
+    };
+  }
+
   async createOneTimeCheckout(
     userId: string,
     dto: CreateOneTimeCheckoutDto,

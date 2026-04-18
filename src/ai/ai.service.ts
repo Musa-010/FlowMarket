@@ -30,7 +30,7 @@ export class AiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async recommendWorkflows(dto: RecommendWorkflowDto) {
     const workflows = await this.prisma.workflow.findMany({
@@ -80,7 +80,7 @@ export class AiService {
 
     const model =
       this.configService.get<string>('OPENROUTER_MODEL') ??
-      'google/gemini-2.0-flash-lite-preview-02-05:free';
+      'nvidia/nemotron-3-super-120b-a12b:free';
 
     const catalog = workflows.map((workflow) => ({
       id: workflow.id,
@@ -100,7 +100,7 @@ export class AiService {
     const history = dto.history ?? [];
     const systemPrompt =
       'You are FlowMarket AI. Recommend practical workflow automations based on user intent. Respond strictly in JSON format.';
-    
+
     const userPrompt = [
       'User message:',
       dto.message.trim(),
@@ -151,26 +151,24 @@ export class AiService {
 
       const parsed: any = this.parseJson(content);
 
-      if (
-        typeof parsed.message !== 'string' ||
-        !Array.isArray(parsed.recommendedWorkflowIds) ||
-        !parsed.recommendedWorkflowIds.every((id: any) => typeof id === 'string')
-      ) {
+      if (typeof parsed.message !== 'string') {
         throw new BadGatewayException(
           'AI response did not match expected recommendation schema',
         );
       }
 
+      const ids: string[] = Array.isArray(parsed.recommendedWorkflowIds)
+        ? parsed.recommendedWorkflowIds.filter((id: any) => typeof id === 'string')
+        : [];
+
       return {
         message: parsed.message,
-        recommendedWorkflowIds: Array.from(
-          new Set((parsed.recommendedWorkflowIds as string[]).map((id) => id.trim())),
-        ).slice(0, 3),
+        recommendedWorkflowIds: Array.from(new Set(ids.map((id) => id.trim()))).slice(0, 3),
       };
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`AI recommendation failed: ${errorMessage}`, error instanceof Error ? error.stack : undefined);
-      
+
       if (error instanceof ServiceUnavailableException || error instanceof BadGatewayException) {
         throw error;
       }

@@ -22,6 +22,25 @@ import { PaymentsService } from '../payments.service';
 export class CheckoutController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Post('payment-intent')
+  @UseGuards(JwtAuthGuard)
+  createPaymentIntent(
+    @Req() req: Request,
+    @Body() dto: { workflowId: string },
+  ) {
+    const context = getRequestContext(req);
+    assertRole(context, ['BUYER', 'SELLER', 'ADMIN']);
+    return this.paymentsService.createPaymentIntent(context.userId, dto);
+  }
+
+  @Post('setup-intent')
+  @UseGuards(JwtAuthGuard)
+  createSetupIntent(@Req() req: Request) {
+    const context = getRequestContext(req);
+    assertRole(context, ['BUYER', 'SELLER', 'ADMIN']);
+    return this.paymentsService.createSetupIntent(context.userId);
+  }
+
   @Post('one-time')
   @UseGuards(JwtAuthGuard)
   createOneTimeCheckout(
