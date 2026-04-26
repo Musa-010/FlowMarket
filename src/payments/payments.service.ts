@@ -244,15 +244,35 @@ export class PaymentsService {
       items: [{ price: plan.priceId }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'],
+      expand: ['latest_invoice.payment_intent', 'pending_setup_intent'],
       metadata: { userId: user.id, planTier: plan.tier, planId: dto.planId },
     });
 
     const invoice = subscription.latest_invoice as any;
-    const clientSecret = invoice?.payment_intent?.client_secret as string;
+    let clientSecret: string | null =
+      typeof invoice?.payment_intent === 'object'
+        ? (invoice.payment_intent?.client_secret ?? null)
+        : null;
+
+    // Fallback: retrieve PaymentIntent directly if expand didn't work
+    if (!clientSecret && typeof invoice?.payment_intent === 'string') {
+      const pi = await stripe.paymentIntents.retrieve(invoice.payment_intent);
+      clientSecret = pi.client_secret;
+    }
+
+    // Fallback: use pending_setup_intent for $0 trials
+    if (!clientSecret) {
+      const psi = subscription.pending_setup_intent as any;
+      clientSecret =
+        typeof psi === 'object'
+          ? (psi?.client_secret ?? null)
+          : null;
+    }
 
     if (!clientSecret) {
-      throw new InternalServerErrorException('Stripe did not return a payment intent');
+      throw new InternalServerErrorException(
+        `Stripe did not return a payment intent. Invoice: ${JSON.stringify(invoice?.id)}, Sub: ${subscription.id}`,
+      );
     }
 
     return {
