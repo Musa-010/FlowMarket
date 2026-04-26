@@ -225,6 +225,44 @@ export class PaymentsService {
     };
   }
 
+  async createSubscriptionIntent(
+    userId: string,
+    dto: CreateSubscriptionCheckoutDto,
+  ): Promise<{ clientSecret: string; ephemeralKey: string; customerId: string; subscriptionId: string }> {
+    const stripe = this.getStripeClient();
+    const user = await this.ensureUser(userId);
+    const customerId = await this.ensureStripeCustomer(user);
+    const plan = this.resolvePlan(dto.planId);
+
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2023-10-16' },
+    );
+
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: plan.priceId }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: { save_default_payment_method: 'on_subscription' },
+      expand: ['latest_invoice.payment_intent'],
+      metadata: { userId: user.id, planTier: plan.tier, planId: dto.planId },
+    });
+
+    const invoice = subscription.latest_invoice as any;
+    const clientSecret = invoice?.payment_intent?.client_secret as string;
+
+    if (!clientSecret) {
+      throw new InternalServerErrorException('Stripe did not return a payment intent');
+    }
+
+    return {
+      clientSecret,
+      ephemeralKey: ephemeralKey.secret!,
+      customerId,
+      subscriptionId: subscription.id,
+    };
+  }
+
   async createCustomerPortal(
     userId: string,
     dto: CreateCustomerPortalDto,
