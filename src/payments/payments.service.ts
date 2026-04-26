@@ -267,15 +267,27 @@ export class PaymentsService {
     const plan = this.resolvePlan(planId);
     const customerId = await this.ensureStripeCustomer(user);
 
-    // Get customer's default payment method
-    const customer = await stripe.customers.retrieve(customerId) as any;
-    const paymentMethod = customer.invoice_settings?.default_payment_method
-      ?? customer.default_source;
+    // Get most recent payment method saved to customer
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: customerId,
+      type: 'card',
+      limit: 1,
+    });
+    const paymentMethodId = paymentMethods.data[0]?.id;
+
+    if (!paymentMethodId) {
+      throw new BadRequestException('No payment method found. Please add a card first.');
+    }
+
+    // Set as default on customer
+    await stripe.customers.update(customerId, {
+      invoice_settings: { default_payment_method: paymentMethodId },
+    });
 
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: plan.priceId }],
-      ...(paymentMethod ? { default_payment_method: paymentMethod } : {}),
+      default_payment_method: paymentMethodId,
       metadata: { userId: user.id, planTier: plan.tier, planId },
     });
 
