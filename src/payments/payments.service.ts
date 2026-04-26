@@ -228,56 +228,58 @@ export class PaymentsService {
   async createSubscriptionIntent(
     userId: string,
     dto: CreateSubscriptionCheckoutDto,
-  ): Promise<{ clientSecret: string; ephemeralKey: string; customerId: string; subscriptionId: string }> {
+  ): Promise<{ clientSecret: string; ephemeralKey: string; customerId: string; planId: string }> {
     const stripe = this.getStripeClient();
     const user = await this.ensureUser(userId);
     const customerId = await this.ensureStripeCustomer(user);
-    const plan = this.resolvePlan(dto.planId);
+    this.resolvePlan(dto.planId); // validate plan exists
 
     const ephemeralKey = await stripe.ephemeralKeys.create(
       { customer: customerId },
       { apiVersion: '2023-10-16' },
     );
 
-    const subscription = await stripe.subscriptions.create({
+    // Use SetupIntent to collect card, then subscribe after payment method saved
+    const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
-      items: [{ price: plan.priceId }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      metadata: { userId: user.id, planTier: plan.tier, planId: dto.planId },
+      automatic_payment_methods: { enabled: true },
+      metadata: { userId: user.id, planId: dto.planId },
     });
 
-    // Retrieve invoice with payment_intent expanded explicitly
-    const invoiceId = typeof subscription.latest_invoice === 'string'
-      ? subscription.latest_invoice
-      : (subscription.latest_invoice as any)?.id;
-
-    let clientSecret: string | null = null;
-
-    if (invoiceId) {
-      const fullInvoice = await stripe.invoices.retrieve(invoiceId, {
-        expand: ['payment_intent'],
-      });
-      const pi = fullInvoice.payment_intent as any;
-      clientSecret = typeof pi === 'object' ? (pi?.client_secret ?? null) : null;
-      if (!clientSecret && typeof pi === 'string') {
-        const piObj = await stripe.paymentIntents.retrieve(pi);
-        clientSecret = piObj.client_secret;
-      }
-    }
-
-    if (!clientSecret) {
-      throw new InternalServerErrorException(
-        `Stripe did not return a payment intent. InvoiceId: ${invoiceId}, Sub: ${subscription.id}`,
-      );
+    if (!setupIntent.client_secret) {
+      throw new InternalServerErrorException('Stripe did not return a setup intent');
     }
 
     return {
-      clientSecret,
+      clientSecret: setupIntent.client_secret,
       ephemeralKey: ephemeralKey.secret!,
       customerId,
-      subscriptionId: subscription.id,
+      planId: dto.planId,
     };
+  }
+
+  async createSubscriptionAfterSetup(
+    userId: string,
+    planId: string,
+  ): Promise<{ subscriptionId: string }> {
+    const stripe = this.getStripeClient();
+    const user = await this.ensureUser(userId);
+    const plan = this.resolvePlan(planId);
+    const customerId = await this.ensureStripeCustomer(user);
+
+    // Get customer's default payment method
+    const customer = await stripe.customers.retrieve(customerId) as any;
+    const paymentMethod = customer.invoice_settings?.default_payment_method
+      ?? customer.default_source;
+
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: plan.priceId }],
+      ...(paymentMethod ? { default_payment_method: paymentMethod } : {}),
+      metadata: { userId: user.id, planTier: plan.tier, planId },
+    });
+
+    return { subscriptionId: subscription.id };
   }
 
   async createCustomerPortal(

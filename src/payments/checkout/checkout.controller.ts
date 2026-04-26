@@ -74,6 +74,17 @@ export class CheckoutController {
     return this.paymentsService.createSubscriptionIntent(context.userId, dto);
   }
 
+  @Post('subscribe-after-setup')
+  @UseGuards(JwtAuthGuard)
+  createSubscriptionAfterSetup(
+    @Req() req: Request,
+    @Body() body: { planId: string },
+  ) {
+    const context = getRequestContext(req);
+    assertRole(context, ['BUYER', 'SELLER', 'ADMIN']);
+    return this.paymentsService.createSubscriptionAfterSetup(context.userId, body.planId);
+  }
+
   @Post('portal')
   @UseGuards(JwtAuthGuard)
   createCustomerPortal(
