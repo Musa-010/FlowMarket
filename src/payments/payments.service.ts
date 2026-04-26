@@ -395,6 +395,7 @@ export class PaymentsService {
         await this.handleInvoicePaymentFailed(event.data.object);
         return;
       case 'payment_intent.succeeded':
+        await this.handlePaymentIntentSucceeded(event.data.object);
         return;
       case 'payment_intent.payment_failed':
         await this.handlePaymentIntentFailed(event.data.object);
@@ -832,6 +833,40 @@ export class PaymentsService {
       amountDue: (session?.amount_total ?? 0) / 100,
       retryAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
+  }
+
+  private async handlePaymentIntentSucceeded(paymentIntent: any): Promise<void> {
+    const type = paymentIntent?.metadata?.type as string | undefined;
+    if (type !== 'ONE_TIME_WORKFLOW') return;
+
+    const userId = paymentIntent?.metadata?.userId as string | undefined;
+    const workflowId = paymentIntent?.metadata?.workflowId as string | undefined;
+    if (!userId || !workflowId) return;
+
+    const existing = await this.prisma.purchase.findFirst({
+      where: { userId, workflowId },
+    });
+    if (existing) return;
+
+    const workflow = await this.prisma.workflow.findUnique({ where: { id: workflowId } });
+    if (!workflow) return;
+
+    const amountPaid = (paymentIntent?.amount_received ?? paymentIntent?.amount ?? 0) / 100;
+
+    await this.prisma.$transaction([
+      this.prisma.purchase.create({
+        data: {
+          userId,
+          workflowId,
+          pricePaid: amountPaid,
+          stripePaymentIntentId: paymentIntent.id,
+        },
+      }),
+      this.prisma.workflow.update({
+        where: { id: workflowId },
+        data: { purchaseCount: { increment: 1 } },
+      }),
+    ]);
   }
 
   private async handlePaymentIntentFailed(paymentIntent: any): Promise<void> {
