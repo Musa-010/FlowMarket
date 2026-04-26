@@ -859,7 +859,7 @@ export class PaymentsService {
           userId,
           workflowId,
           pricePaid: amountPaid,
-          stripePaymentIntentId: paymentIntent.id,
+          stripePaymentId: paymentIntent.id,
         },
       }),
       this.prisma.workflow.update({
