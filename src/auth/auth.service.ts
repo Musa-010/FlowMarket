@@ -122,7 +122,8 @@ export class AuthService {
     if (getApps().length > 0) return getApps()[0];
     const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
     const clientEmail = this.config.get<string>('FIREBASE_CLIENT_EMAIL');
-    const privateKey = this.config.get<string>('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+    const rawKey = this.config.get<string>('FIREBASE_PRIVATE_KEY') ?? '';
+    const privateKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
     if (projectId && clientEmail && privateKey) {
       return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
     }
