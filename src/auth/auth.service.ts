@@ -6,6 +6,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -114,5 +116,38 @@ export class AuthService {
     // Silently succeed even if email not found (security best practice)
     await this.prisma.user.findUnique({ where: { email } });
     // TODO: send reset email via EmailService
+  }
+
+  private getFirebaseApp() {
+    if (getApps().length > 0) return getApps()[0];
+    const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
+    const clientEmail = this.config.get<string>('FIREBASE_CLIENT_EMAIL');
+    const privateKey = this.config.get<string>('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+    if (projectId && clientEmail && privateKey) {
+      return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+    }
+    return initializeApp();
+  }
+
+  async socialLogin(idToken: string) {
+    const app = this.getFirebaseApp();
+    const decoded = await getAuth(app).verifyIdToken(idToken);
+    const email = decoded.email;
+    if (!email) throw new UnauthorizedException('No email in token');
+
+    let user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          name: decoded.name ?? email.split('@')[0],
+          passwordHash: '',
+          role: 'BUYER',
+        },
+      });
+    }
+
+    const tokens = this.signTokens(user.id, user.role);
+    return { ...tokens, user: this.formatUser(user) };
   }
 }

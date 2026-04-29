@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { SocialLoginDto } from './dto/social-login.dto';
 import { JwtAuthGuard } from './guards/jwt.guard';
 
 @Controller('auth')
@@ -45,5 +46,17 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   forgotPassword(@Body() body: { email: string }) {
     return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  loginWithGoogle(@Body() dto: SocialLoginDto) {
+    return this.authService.socialLogin(dto.idToken);
+  }
+
+  @Post('apple')
+  @HttpCode(HttpStatus.OK)
+  loginWithApple(@Body() dto: SocialLoginDto) {
+    return this.authService.socialLogin(dto.idToken);
   }
 }
