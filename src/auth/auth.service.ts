@@ -124,10 +124,11 @@ export class AuthService {
     const clientEmail = this.config.get<string>('FIREBASE_CLIENT_EMAIL');
     const rawKey = this.config.get<string>('FIREBASE_PRIVATE_KEY') ?? '';
     const privateKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
-    if (projectId && clientEmail && privateKey) {
-      return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+    console.log('[Firebase init] projectId:', projectId, 'clientEmail:', clientEmail, 'privateKeyLength:', privateKey.length);
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error(`Firebase env vars missing — projectId:${!!projectId} clientEmail:${!!clientEmail} privateKey:${!!privateKey}`);
     }
-    return initializeApp();
+    return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
   }
 
   async socialLogin(idToken: string) {
