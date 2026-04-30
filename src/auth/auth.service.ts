@@ -138,15 +138,21 @@ export class AuthService {
       const email = decoded.email;
       if (!email) throw new UnauthorizedException('No email in token');
 
+      const googleName = decoded.name ?? email.split('@')[0];
       let user = await this.prisma.user.findUnique({ where: { email } });
       if (!user) {
         user = await this.prisma.user.create({
           data: {
             email,
-            name: decoded.name ?? email.split('@')[0],
+            name: googleName,
             passwordHash: '',
             role: 'BUYER',
           },
+        });
+      } else if (decoded.name && user.name !== decoded.name) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { name: decoded.name },
         });
       }
 
