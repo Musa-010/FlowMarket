@@ -131,24 +131,29 @@ export class AuthService {
   }
 
   async socialLogin(idToken: string) {
-    const app = this.getFirebaseApp();
-    const decoded = await getAuth(app).verifyIdToken(idToken);
-    const email = decoded.email;
-    if (!email) throw new UnauthorizedException('No email in token');
+    try {
+      const app = this.getFirebaseApp();
+      const decoded = await getAuth(app).verifyIdToken(idToken);
+      const email = decoded.email;
+      if (!email) throw new UnauthorizedException('No email in token');
 
-    let user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          email,
-          name: decoded.name ?? email.split('@')[0],
-          passwordHash: '',
-          role: 'BUYER',
-        },
-      });
+      let user = await this.prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            name: decoded.name ?? email.split('@')[0],
+            passwordHash: '',
+            role: 'BUYER',
+          },
+        });
+      }
+
+      const tokens = this.signTokens(user.id, user.role);
+      return { ...tokens, user: this.formatUser(user) };
+    } catch (err) {
+      console.error('[socialLogin error]', err);
+      throw err;
     }
-
-    const tokens = this.signTokens(user.id, user.role);
-    return { ...tokens, user: this.formatUser(user) };
   }
 }
